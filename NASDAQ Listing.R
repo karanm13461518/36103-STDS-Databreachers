@@ -1,3 +1,12 @@
+library(tidyr)
+library(tidyverse)
+library(forcats)
+library(dplyr)
+library(caret)
+library(jsonlite)
+library(gtrendsR)
+library(lubridate)
+
 json_file <- 'https://datahub.io/core/nasdaq-listings/datapackage.json'
 json_data <- fromJSON(paste(readLines(json_file), collapse=""))
 
