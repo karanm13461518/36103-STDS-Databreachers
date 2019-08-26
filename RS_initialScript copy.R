@@ -6,6 +6,7 @@ library(caret)
 library(jsonlite)
 library(gtrendsR)
 library(lubridate)
+
 dataPart1 <- read_csv("data/Privacy_Rights_Clearinghouse-Data-Breaches-Export_2005-2012.csv")
 dataPart2 <- read_csv("data/Privacy_Rights_Clearinghouse-Data-Breaches-Export_2013-2019csv.csv")
 
