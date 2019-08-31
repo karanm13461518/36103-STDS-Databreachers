@@ -10,6 +10,11 @@ library(lubridate)
 library(tabulizer)
 library(countrycode)
 library(svMisc)
+library(foreach)
+library(doParallel)
+
+numCores <- detectCores()
+registerDoParallel(numCores)
 
 ## Read in the CSV file. Some warning which appear can be ignored.
 dataPart1 <- read_csv("data/Privacy_Rights_Clearinghouse-Data-Breaches-Export_2005-2012.csv")
@@ -121,11 +126,16 @@ gci2018 <- na.omit(gci2018)
 ## Set up empty data frame to collect results.
 trendData <- data.frame()
 
+rows <- nrow(getTrendsFor)
+rowsP1 <- round(rows / 7, 0)
+
+
+
 ## Loop through each organisation and run Google Trend Query
 for(row in 1:nrow(getTrendsFor)){ ## NOTE: Loop will take > 5 hrs to run ~3K Google trend queries - RUN AT YOUR OWN Risk
 #for(row in 1:30){ #test loop for only first 30 companies
-  
-    ## Set up progress bar  
+
+      ## Set up progress bar  
     progress(row, progress.bar = TRUE)
     
   
@@ -137,7 +147,7 @@ for(row in 1:nrow(getTrendsFor)){ ## NOTE: Loop will take > 5 hrs to run ~3K Goo
     dateSpan <- paste(as.character(dateLower), as.character(dateUpper), sep = " ")
     
     ## Run Google Trend Query
-    rowCompTrends <- gtrends(keyword = rowComp, time = dateSpan, gprop = "web", low_search_volume = FALSE, onlyInterest = FALSE, hl = "en-US")
+    rowCompTrends <- gtrends(keyword = rowComp, time = dateSpan, gprop = "web", low_search_volume = FALSE, onlyInterest = FALSE, hl = "en-US", cookie_url = "http://trends.google.com/Cookies/NID")
     
 
     
@@ -162,11 +172,11 @@ for(row in 1:nrow(getTrendsFor)){ ## NOTE: Loop will take > 5 hrs to run ~3K Goo
     intByCountry <- na.omit(intByCountry)
     
     
-    ## Start building the out put data frame
+    ## Start building the output data frame
     trendData[row, "Company"] <- rowComp
-    trendData[row, "DateMadePublic"] <- rowDate
-    trendData[row, "Description"] <- getTrendsFor$Description[row]
-    trendData[row, "NumRecords"] <- getTrendsFor$TotalRecords[row]
+    #trendData[row, "DateMadePublic"] <- rowDate
+    #trendData[row, "Description"] <- getTrendsFor$Description[row]
+    #trendData[row, "NumRecords"] <- getTrendsFor$TotalRecords[row]
     if(nrow(intByCountry)==0){
       trendData$medianGCIScore[row] <- as.numeric(c(0))
     }
