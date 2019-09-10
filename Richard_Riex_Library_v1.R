@@ -3,8 +3,8 @@ library(rlang)
 library(purrr)
 
 #Key initialisation
-sk_Active <- "sk_22b5ae6975a44c84be02141ce302c0fe"
-sk_Test <- "Tsk_c4d4a569d5374229a40296fa5e0189ac" #Secret key
+sk_Active <- ""
+sk_Test <- "" #Secret key
 iex_sk <- sk_Active
 Company_List <- as.character(data$Symbol) # company name - from NASDAQ Listing.R
 r <- "1d" #Extract period {"5y", "2y", "1y", "ytd", "6m", "3m", "1m", "1d"}
