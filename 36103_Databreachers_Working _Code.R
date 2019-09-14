@@ -221,10 +221,10 @@ proc.time()-ptm
 
 ################# Merging Data #################
 
-dataSummary <- data %>%
-  filter(is.na(CompanyName) == FALSE) %>%
-  select(Symbol, Company, City, State, BreachType, 
-         TotalRecords, BreachYear, Latitude, Longitude)
+# dataSummary <- data %>%
+#   filter(is.na(CompanyName) == FALSE) %>%
+#   select(Symbol, Company, City, State, BreachType, 
+#          TotalRecords, BreachYear, Latitude, Longitude)
 
 dropDataCol <- c("Description", "InfoSource", "SourceURL", "clean")
 
