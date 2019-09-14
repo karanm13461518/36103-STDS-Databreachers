@@ -1,6 +1,7 @@
 #### Load the libraries
 library(tidyr)
 library(tidyverse)
+library(tidytext)
 library(forcats)
 library(dplyr)
 library(caret)
