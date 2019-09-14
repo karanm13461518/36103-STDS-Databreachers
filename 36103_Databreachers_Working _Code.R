@@ -114,8 +114,47 @@ combinedListing <- combinedListing %>%
 
 ############## Get Market Cap (Karan) ################
 
+stkFileList <- as.data.frame(list.files("data/stocks", full.names = TRUE))
+names(stkFileList) <- c("FileName")
+stkFileList$FileName <- as.character(stkFileList$FileName)
 
+mktCap_df <- data.frame()
 
+for(i in 1:nrow(stkFileList)){
+  fileName <- stkFileList$FileName[i]
+  
+  fName <- basename(file_path_sans_ext(fileName))
+  mySymbol <- toupper(sub(pattern = "(.*)\\..*$", replacement = "\\1", fName))
+  
+  checkFile <- file.info(fileName)
+  
+  if(checkFile$size != 0){
+    tempData <- read.csv(fileName)
+    
+    names(tempData) <- c("Date","Open","High","Low","Close","Volume","OpenInt")
+    
+    tempData$Close <- as.numeric(as.character(tempData$Close))
+    tempData$Volume <- as.numeric(as.character(tempData$Volume))
+    
+    
+    tempData$mktCap <- tempData$Close * tempData$Volume
+    tempData$year <- format(as.Date(tempData$Date, format="%Y-%m-%d"),"%Y")
+    
+    tempData <- tempData %>%
+      group_by(year) %>%
+      summarise(medCap = median(mktCap), medVol = median(Volume), meanVol = mean(Volume))
+    
+    tempData$Symbol <- mySymbol
+    
+    mktCap_df <- rbind(mktCap_df, tempData)
+  }
+  
+}
+
+mktCap_df <- mktCap_df %>%
+  filter(year >= 2005)
+
+#mktCap_df_test <- spread(mktCap_df, year, medCap)
 
 ############## ORG Matching (Karan) ################
 
@@ -180,26 +219,61 @@ for(rows in 1:nrow(data)){ #for all rows in the databreach set.
 }
 proc.time()-ptm
 
+################# Merging Data #################
+
 dataSummary <- data %>%
   filter(is.na(CompanyName) == FALSE) %>%
   select(Symbol, Company, City, State, BreachType, 
          TotalRecords, BreachYear, Latitude, Longitude)
 
-dataSummary$BreachYear <- year(as.Date(as.character(dataSummary$BreachYear), format = "%Y"))
+dropDataCol <- c("Description", "InfoSource", "SourceURL", "clean")
+
+dataMerge <- select(data,-c("Description", "InfoSource", "SourceURL", "clean"))
+dataMerge$BreachYear <- year(as.Date(as.character(dataMerge$BreachYear), format = "%Y"))
+
+names(dataMerge) <- c("DateMadePublic", "OrigCompany", "City" , "State", "BreachType", "OrgType", "TotalRecords", "BreachYear", "Latitude", "Longitude", "MatchedCompanyName", "Symbol")
+
+listingsMerge <- select(combinedListing, -c("Ex", "clean"))
+
+meanVol_df <- mktCap_df[,c("year", "Symbol", "meanVol")]
+meanVol_df <- spread(meanVol_df, year, meanVol)
+
+medVol_df <- mktCap_df[,c("year", "Symbol", "medVol")]
+medVol_df <- spread(medVol_df, year, medVol)
+
+medCap_df <- mktCap_df[,c("year", "Symbol", "medCap")]
+medCap_df <- spread(medCap_df, year, medCap)
+
+
+mergedData <- listingsMerge %>% left_join(dataMerge, by = "Symbol")
+
+mergedData_mnVol <- mergedData %>% left_join(meanVol_df, by = "Symbol")
+mergedData_mdVol <- mergedData %>% left_join(medVol_df, by = "Symbol")
+mergedData_mdCap <- mergedData %>% left_join(medCap_df, by = "Symbol")
+
+write.csv(mergedData_mnVol, "data/20190914MergedData_mnVol.csv")
+write.csv(mergedData_mdVol, "data/20190914MergedData_mdVol.csv")
+write.csv(mergedData_mdCap, "data/20190914MergedData_mdCap.csv")
+
+# dataSummary$BreachYear <- year(as.Date(as.character(dataSummary$BreachYear), format = "%Y"))
 
 # dataSummary <- dataSummary %>%
 #   group_by(Symbol, Company) %>%
 #   summarise(numBreach = n(), lastBreach = max(BreachYear), recordsTotal = sum(TotalRecords), 
 #             lastBreachRec = TotalRecords[which.min(BreachYear)], 
 #             typeBreaches = paste(BreachType, collapse = ", "))
-  
-mergedData <- combinedListing %>% left_join(dataSummary, by = "Symbol")
 
-mergedData$clean <- NULL
+# mergedData <- combinedListing %>% left_join(dataSummary, by = "Symbol")
+# 
+# mergedData$clean <- NULL
+# 
+# write.csv(mergedData, "data/MergedData_DataSummary20190914.csv")
 
-write.csv(mergedData, "data/MergedData_DataSummary20190914.csv")
 
-# Add, number of breaches, year of last breach, boolean of if breached, type of breach, total records breached, records for last breach
+
+################################################ 
+
+
 
 #### Richard Zhang ####
 #### iex_info_extract combined function
