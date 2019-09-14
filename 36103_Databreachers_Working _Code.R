@@ -19,7 +19,8 @@ library(stringr)
 library(edgarWebR)
 library(stopwords)
 library(qdap)
-devtools::install_github(repo = 'mlampros/fuzzywuzzyR')
+library(tools)
+#devtools::install_github(repo = 'mlampros/fuzzywuzzyR')
 library(fuzzywuzzyR)
 
 #Added by Richard Zhang
