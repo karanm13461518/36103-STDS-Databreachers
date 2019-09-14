@@ -177,10 +177,9 @@ for(rows in 1:nrow(data)){ #for all rows in the databreach set.
 proc.time()-ptm
 
 dataSummary <- data %>%
-  filter(Listed == TRUE) %>%
-  rename(Symbol = stockTicker) %>%
+  filter(is.na(CompanyName) == FALSE) %>%
   select(Symbol, Company, City, State, BreachType, 
-         TotalRecords, BreachYear, Latitude, Longitude, Listed)
+         TotalRecords, BreachYear, Latitude, Longitude, CompanyName)
 
 dataSummary$BreachYear <- year(as.Date(as.character(dataSummary$BreachYear), format = "%Y"))
 
