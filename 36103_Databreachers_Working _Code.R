@@ -112,9 +112,13 @@ combinedListing <- combinedListing %>%
 #### Adding Breach information
 # Add, number of breaches, year of last breach, boolean of if breached, type of breach, total records breached, records for last breach
 
+############## Get Market Cap (Karan) ################
+
+
+
+
 ############## ORG Matching (Karan) ################
 
-#spacy_initialize()
 dataTemp <- data
 data <- dataTemp
 
@@ -179,21 +183,21 @@ proc.time()-ptm
 dataSummary <- data %>%
   filter(is.na(CompanyName) == FALSE) %>%
   select(Symbol, Company, City, State, BreachType, 
-         TotalRecords, BreachYear, Latitude, Longitude, CompanyName)
+         TotalRecords, BreachYear, Latitude, Longitude)
 
 dataSummary$BreachYear <- year(as.Date(as.character(dataSummary$BreachYear), format = "%Y"))
 
-dataSummary <- dataSummary %>%
-  group_by(Symbol) %>%
-  summarise(numBreach = n(), lastBreach = max(BreachYear), recordsTotal = sum(TotalRecords), 
-            lastBreachRec = TotalRecords[which.min(BreachYear)], 
-            typeBreaches = paste(BreachType, collapse = ", "))
+# dataSummary <- dataSummary %>%
+#   group_by(Symbol, Company) %>%
+#   summarise(numBreach = n(), lastBreach = max(BreachYear), recordsTotal = sum(TotalRecords), 
+#             lastBreachRec = TotalRecords[which.min(BreachYear)], 
+#             typeBreaches = paste(BreachType, collapse = ", "))
   
 mergedData <- combinedListing %>% left_join(dataSummary, by = "Symbol")
 
 mergedData$clean <- NULL
 
-write.csv(mergedData, "data/MergedData_InitialOutput.csv")
+write.csv(mergedData, "data/MergedData_DataSummary20190914.csv")
 
 # Add, number of breaches, year of last breach, boolean of if breached, type of breach, total records breached, records for last breach
 
