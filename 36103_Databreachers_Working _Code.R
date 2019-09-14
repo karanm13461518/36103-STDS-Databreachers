@@ -219,7 +219,7 @@ for(rows in 1:nrow(data)){ #for all rows in the databreach set.
 }
 proc.time()-ptm
 
-################# Merging Data #################
+################# Merging Data (Karan) #################
 
 # dataSummary <- data %>%
 #   filter(is.na(CompanyName) == FALSE) %>%
