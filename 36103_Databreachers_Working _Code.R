@@ -113,7 +113,7 @@ combinedListing <- combinedListing %>%
 #### Adding Breach information
 # Add, number of breaches, year of last breach, boolean of if breached, type of breach, total records breached, records for last breach
 
-############## Get Market Cap (Karan) ################
+############## Get Market Cap (Rohan and Karan) ################
 
 stkFileList <- as.data.frame(list.files("data/stocks", full.names = TRUE))
 names(stkFileList) <- c("FileName")
