@@ -109,9 +109,15 @@ combinedListing <- distinct(combinedListing)
 combinedListing <- combinedListing %>%
   filter(combinedListing$MarketCap != "n/a")
 
+################# Loading and Merging Company informaition from RIEX (Karan) #################
 
-#### Adding Breach information
-# Add, number of breaches, year of last breach, boolean of if breached, type of breach, total records breached, records for last breach
+cData1 <- read.csv("data/CompanyStats1.csv")
+cData2 <- read.csv("data/df_Company_Stats2.csv")
+cData3 <- read.csv("data/df_Company_Stats3.csv")
+
+setdiff(cData2$symbol, cData1$symbol)
+setdiff(cData2$symbol, cData3$symbol)
+
 
 ############## Get Market Cap (Rohan and Karan) ################
 
@@ -134,16 +140,18 @@ for(i in 1:nrow(stkFileList)){
     
     names(tempData) <- c("Date","Open","High","Low","Close","Volume","OpenInt")
     
+    tempData$Open <- as.numeric(as.character(tempData$Open))
+    tempData$High <- as.numeric(as.character(tempData$High))
     tempData$Close <- as.numeric(as.character(tempData$Close))
     tempData$Volume <- as.numeric(as.character(tempData$Volume))
     
-    
-    tempData$mktCap <- tempData$Close * tempData$Volume
     tempData$year <- format(as.Date(tempData$Date, format="%Y-%m-%d"),"%Y")
+    tempData$dailyDiff <- tempData$Close - tempData$Open
     
     tempData <- tempData %>%
       group_by(year) %>%
-      summarise(medCap = median(mktCap), medVol = median(Volume), meanVol = mean(Volume))
+      summarise(medVol = median(Volume), medClosePrice = median(Close), 
+                medDiff = median(dailyDiff), medHigh = median(High))
     
     tempData$Symbol <- mySymbol
     
@@ -165,11 +173,6 @@ data <- dataTemp
 data$clean <- cleanCompName(data$Company)
 combinedListing$clean <- cleanCompName(combinedListing$Name)
 
-# temp <- as.data.frame(data$clean)
-# names(temp) <- c("CompName")
-# temp$CompName <- as.character(temp$CompName)
-# temp$matchedName <- NA
-# temp$matchedSymbol <- NA
 
 data$CompanyName <- NA
 data$Symbol  <- NA
@@ -193,12 +196,12 @@ for(rows in 1:nrow(data)){ #for all rows in the databreach set.
   # match on stock symbols
   myMatch2 <- amatch(kw, combinedListing$Symbol, nomatch = 0,  maxDist = 1, nthread = 7, method = "dl")
   #myMatch2 <- match(kw, combinedListing$Symbol, nomatch = 0)
-  
+
+   
   # Fuzzy match on compnay name in combined listings
   matchMy <- GetCloseMatches(kw, combinedListing$clean, n = 1, cutoff = 0.75)
   myMatchVec <- as.character(as.vector(matchMy))
   indexNo <- which(combinedListing$clean == myMatchVec)
-  #myMatch3 <- amatch(kw, combinedListing$clean, nomatch = 0, maxDist = 3.5, nthread = 7, method = "lcs")
   
   if(myMatch != 0){
     data$CompanyName[rows] <- combinedListing$Name[myMatch]
@@ -213,7 +216,7 @@ for(rows in 1:nrow(data)){ #for all rows in the databreach set.
   else if(myMatch == 0 && myMatch2 == 0 && length(indexNo) != 0){
     data$CompanyName[rows] <- combinedListing$Name[indexNo]
     data$Symbol[rows] <- combinedListing$Symbol[indexNo]
-    #data$match[rows] <- c("Match 3")
+    #data$match[rows] <- c("Match 4")
   }
   
   
@@ -227,8 +230,6 @@ proc.time()-ptm
 #   select(Symbol, Company, City, State, BreachType, 
 #          TotalRecords, BreachYear, Latitude, Longitude)
 
-dropDataCol <- c("Description", "InfoSource", "SourceURL", "clean")
-
 dataMerge <- select(data,-c("Description", "InfoSource", "SourceURL", "clean"))
 dataMerge$BreachYear <- year(as.Date(as.character(dataMerge$BreachYear), format = "%Y"))
 
@@ -236,43 +237,21 @@ names(dataMerge) <- c("DateMadePublic", "OrigCompany", "City" , "State", "Breach
 
 listingsMerge <- select(combinedListing, -c("Ex", "clean"))
 
-meanVol_df <- mktCap_df[,c("year", "Symbol", "meanVol")]
-meanVol_df <- spread(meanVol_df, year, meanVol)
 
-medVol_df <- mktCap_df[,c("year", "Symbol", "medVol")]
-medVol_df <- spread(medVol_df, year, medVol)
-
-medCap_df <- mktCap_df[,c("year", "Symbol", "medCap")]
-medCap_df <- spread(medCap_df, year, medCap)
+medStock_df <- mktCap_df[,c("year", "Symbol", "medVol", "medClosePrice", "medDiff", "medHigh")]
 
 
 mergedData <- listingsMerge %>% left_join(dataMerge, by = "Symbol")
 
-mergedData_mnVol <- mergedData %>% left_join(meanVol_df, by = "Symbol")
-mergedData_mdVol <- mergedData %>% left_join(medVol_df, by = "Symbol")
-mergedData_mdCap <- mergedData %>% left_join(medCap_df, by = "Symbol")
 
-write.csv(mergedData_mnVol, "data/20190914MergedData_mnVol.csv")
-write.csv(mergedData_mdVol, "data/20190914MergedData_mdVol.csv")
-write.csv(mergedData_mdCap, "data/20190914MergedData_mdCap.csv")
+medStock_df$year <- as.numeric(medStock_df$year)
 
-# dataSummary$BreachYear <- year(as.Date(as.character(dataSummary$BreachYear), format = "%Y"))
+mergedData_mdStock <- medStock_df %>% left_join(mergedData, by = c("Symbol", "year" = "BreachYear"))
 
-# dataSummary <- dataSummary %>%
-#   group_by(Symbol, Company) %>%
-#   summarise(numBreach = n(), lastBreach = max(BreachYear), recordsTotal = sum(TotalRecords), 
-#             lastBreachRec = TotalRecords[which.min(BreachYear)], 
-#             typeBreaches = paste(BreachType, collapse = ", "))
-
-# mergedData <- combinedListing %>% left_join(dataSummary, by = "Symbol")
-# 
-# mergedData$clean <- NULL
-# 
-# write.csv(mergedData, "data/MergedData_DataSummary20190914.csv")
+mergedData_mdStock$Breached <- ifelse(is.na(mergedData_mdStock$MatchedCompanyName), FALSE, TRUE)
 
 
-
-################################################ 
+write.csv(mergedData_mdStock, "CSV_EDA/20190917MergedData__mdStock.csv")
 
 
 
