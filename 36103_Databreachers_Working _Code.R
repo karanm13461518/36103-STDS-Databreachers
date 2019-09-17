@@ -239,22 +239,22 @@ listingsMerge <- select(combinedListing, -c("Ex", "clean"))
 
 
 medStock_df <- mktCap_df[,c("year", "Symbol", "medVol", "medClosePrice", "medDiff", "medHigh")]
-
-
-mergedData <- listingsMerge %>% left_join(dataMerge, by = "Symbol")
-
-
 medStock_df$year <- as.numeric(medStock_df$year)
 
-mergedData_mdStock <- medStock_df %>% left_join(mergedData, by = c("Symbol", "year" = "BreachYear"))
+mergedData_mdStock <- medStock_df %>% inner_join(listingsMerge, by = "Symbol")
+mergedData_mdStock <- mergedData_mdStock %>% left_join(dataMerge, by = c("Symbol", "year" = "BreachYear"))
+
+# mergedData <- listingsMerge %>% left_join(dataMerge, by = "Symbol")
+# mergedData_mdStock <- medStock_df %>% left_join(mergedData, by = c("Symbol", "year" = "BreachYear"))
 
 mergedData_mdStock$Breached <- ifelse(is.na(mergedData_mdStock$MatchedCompanyName), FALSE, TRUE)
-
 mergedData_mdStock$MatchedCompanyName <- NULL
 
 write.csv(mergedData_mdStock, "CSV_EDA/20190917MergedData__mdStock.csv")
 
+################# Regression (Karan) #################
 
+regData <- select(mergedData_mdStock, -c("DateMadePublic", "OrigCompany", "City", "State", "BreachType", "OrgType", "TotalRecords", "Latitude", "Longitude"))
 
 #### Richard Zhang ####
 #### iex_info_extract combined function
