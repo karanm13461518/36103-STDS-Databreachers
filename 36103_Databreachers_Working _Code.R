@@ -250,6 +250,7 @@ mergedData_mdStock <- medStock_df %>% left_join(mergedData, by = c("Symbol", "ye
 
 mergedData_mdStock$Breached <- ifelse(is.na(mergedData_mdStock$MatchedCompanyName), FALSE, TRUE)
 
+mergedData_mdStock$MatchedCompanyName <- NULL
 
 write.csv(mergedData_mdStock, "CSV_EDA/20190917MergedData__mdStock.csv")
 
