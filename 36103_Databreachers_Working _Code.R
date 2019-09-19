@@ -20,6 +20,8 @@ library(edgarWebR)
 library(stopwords)
 library(qdap)
 library(tools)
+library(DMwR)
+library(pROC)
 #devtools::install_github(repo = 'mlampros/fuzzywuzzyR')
 library(fuzzywuzzyR)
 
@@ -38,6 +40,9 @@ cleanCompName <- function(compName){
   
   return(temp)
 }
+
+repalceNAWithMedian <- function(x) {replace(x, is.na(x), median(x[!is.na(x)]))}
+
 
 #### Breaches CSV Files (Karan)
 ## Read in the CSV file. Some warning which appear can be ignored.
@@ -112,11 +117,26 @@ combinedListing <- combinedListing %>%
 ################# Loading and Merging Company informaition from RIEX (Karan) #################
 
 cData1 <- read.csv("data/CompanyStats1.csv")
-cData2 <- read.csv("data/df_Company_Stats2.csv")
+cData2 <- read.csv("data/df_Company_Stats2new.csv")
 cData3 <- read.csv("data/df_Company_Stats3.csv")
+cData4 <- read.csv("data/df_Company_Stats4.csv")
 
-setdiff(cData2$symbol, cData1$symbol)
-setdiff(cData2$symbol, cData3$symbol)
+riexData <- rbind(cData1, cData2, cData3, cData4)
+
+riexData <- riexData[,c("symbol", "employees")]
+
+names(riexData) <- c("Symbol", "numEmployees")
+
+riexData$numEmployees[is.na(riexData$numEmployees)] <- median(riexData$numEmployees, na.rm = TRUE)
+
+riexData$compSize <- factor(case_when(
+  riexData$numEmployees <= 1000 ~ "Small",
+  riexData$numEmployees > 1000 & riexData$numEmployees <= 5000 ~ "Medium",
+  riexData$numEmployees > 5000 ~ "Large"
+))
+
+riexData$numEmployees <- NULL
+riexData <- unique(riexData)
 
 
 ############## Get Market Cap (Rohan and Karan) ################
@@ -159,6 +179,14 @@ for(i in 1:nrow(stkFileList)){
   }
   
 }
+
+## Impute NA values with median
+mktCap_df$medVol[is.na(mktCap_df$medVol)] <- median(mktCap_df$medVol, na.rm = TRUE)
+mktCap_df$medClosePrice[is.na(mktCap_df$medClosePrice)] <- median(mktCap_df$medClosePrice, na.rm = TRUE)
+mktCap_df$medDiff[is.na(mktCap_df$medDiff)] <- median(mktCap_df$medDiff, na.rm = TRUE)
+mktCap_df$medHigh[is.na(mktCap_df$medHigh)] <- median(mktCap_df$medHigh, na.rm = TRUE)
+
+
 
 mktCap_df <- mktCap_df %>%
   filter(year >= 2005)
@@ -235,26 +263,76 @@ dataMerge$BreachYear <- year(as.Date(as.character(dataMerge$BreachYear), format 
 
 names(dataMerge) <- c("DateMadePublic", "OrigCompany", "City" , "State", "BreachType", "OrgType", "TotalRecords", "BreachYear", "Latitude", "Longitude", "MatchedCompanyName", "Symbol")
 
+riexData$Symbol <- as.character(riexData$Symbol)
+
 listingsMerge <- select(combinedListing, -c("Ex", "clean"))
 
 
 medStock_df <- mktCap_df[,c("year", "Symbol", "medVol", "medClosePrice", "medDiff", "medHigh")]
 medStock_df$year <- as.numeric(medStock_df$year)
 
+listingsMerge <- listingsMerge %>% left_join(riexData, by = "Symbol")
+
 mergedData_mdStock <- medStock_df %>% inner_join(listingsMerge, by = "Symbol")
 mergedData_mdStock <- mergedData_mdStock %>% left_join(dataMerge, by = c("Symbol", "year" = "BreachYear"))
 
-# mergedData <- listingsMerge %>% left_join(dataMerge, by = "Symbol")
-# mergedData_mdStock <- medStock_df %>% left_join(mergedData, by = c("Symbol", "year" = "BreachYear"))
 
 mergedData_mdStock$Breached <- ifelse(is.na(mergedData_mdStock$MatchedCompanyName), FALSE, TRUE)
 mergedData_mdStock$MatchedCompanyName <- NULL
 
-write.csv(mergedData_mdStock, "CSV_EDA/20190917MergedData__mdStock.csv")
+write.csv(mergedData_mdStock, "CSV_EDA/20190919MergedData__mdStock.csv")
 
 ################# Regression (Karan) #################
 
-regData <- select(mergedData_mdStock, -c("DateMadePublic", "OrigCompany", "City", "State", "BreachType", "OrgType", "TotalRecords", "Latitude", "Longitude"))
+regData <- select(mergedData_mdStock, -c("Name", "LastSale", "MarketCap", "DateMadePublic", "OrigCompany", "City", "State", "BreachType", "OrgType", "TotalRecords", "Latitude", "Longitude"))
+
+prop.table(table(regData$Breached))
+
+# regData$IPOyear <- as.numeric(as.character(format(as.Date(regData$IPOyear , format="%Y"),"%Y")))
+regData$Symbol <- as.factor(regData$Symbol)
+regData$compSize <- as.factor(regData$compSize)
+regData$year <- as.factor(regData$year)
+regData$IPOyear <- as.factor(regData$IPOyear)
+
+regData$Breached <- ifelse(regData$Breached == TRUE, 1, 0)
+regData$Breached <- as.factor(regData$Breached)
+
+
+regData$medClosePrice[is.na(regData$medClosePrice)] <- median(regData$medClosePrice, na.rm = TRUE)
+regData$medVol[is.na(regData$medVol)] <- median(regData$medVol, na.rm = TRUE)
+regData$medDiff[is.na(regData$medDiff)] <- median(regData$medDiff, na.rm = TRUE)
+regData$medHigh[is.na(regData$medHigh)] <- median(regData$medHigh, na.rm = TRUE)
+
+
+summary(regData)
+
+set.seed(123)
+trainIndex <- createDataPartition(regData$year, p = .7,
+                                  list = FALSE,
+                                  times = 1)
+
+trainSet <- regData[trainIndex,]
+testSet <- regData[-trainIndex,]
+
+### SMOTE Training Set
+
+trainSet$Breached <- as.factor(trainSet$Breached)
+trainSet$Symbol <- as.factor(trainSet$Symbol)
+# trainSet <- SMOTE(Breached ~ year+medVol+medClosePrice+medDiff+medHigh+IPOyear, as.data.frame(trainSet), perc.over = 100)
+trainSet <- SMOTE(Breached ~ ., as.data.frame(trainSet), perc.over = 500, n.cores = 7)
+
+
+prop.table(table(trainSet$Breached))
+
+trnCtrl <- trainControl(method = "cv", number = 5)
+glmModel <- train(Breached ~ medVol+medClosePrice+medDiff+medHigh, data = trainSet, method = "glm", family = "binomial", trControl = trnCtrl, na.action = na.exclude)
+# glm(Breached ~ ., family = binomial, data = trainSet)
+
+pred <- predict(glmModel$finalModel, testSet, , type = "response")
+
+
+auc <- roc(testSet$Breached, pred)
+print(auc)
 
 #### Richard Zhang ####
 #### iex_info_extract combined function
