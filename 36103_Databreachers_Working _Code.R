@@ -22,6 +22,7 @@ library(qdap)
 library(tools)
 library(DMwR)
 library(pROC)
+library(ROCR)
 #devtools::install_github(repo = 'mlampros/fuzzywuzzyR')
 library(fuzzywuzzyR)
 
@@ -130,9 +131,9 @@ names(riexData) <- c("Symbol", "numEmployees")
 riexData$numEmployees[is.na(riexData$numEmployees)] <- median(riexData$numEmployees, na.rm = TRUE)
 
 riexData$compSize <- factor(case_when(
-  riexData$numEmployees <= 1000 ~ "Small",
-  riexData$numEmployees > 1000 & riexData$numEmployees <= 5000 ~ "Medium",
-  riexData$numEmployees > 5000 ~ "Large"
+  riexData$numEmployees <= 1000 ~ "Sml",
+  riexData$numEmployees > 1000 & riexData$numEmployees <= 5000 ~ "Med",
+  riexData$numEmployees > 5000 ~ "Lrg"
 ))
 
 riexData$numEmployees <- NULL
@@ -171,22 +172,25 @@ for(i in 1:nrow(stkFileList)){
     tempData <- tempData %>%
       group_by(year) %>%
       summarise(medVol = median(Volume), medClosePrice = median(Close), 
-                medDiff = median(dailyDiff), medHigh = median(High))
+                medDiff = median(dailyDiff), medHigh = median(High), sdVol = sd(Volume, na.rm=T), sdClosePrice = sd(Close, na.rm = T))
     
     tempData$Symbol <- mySymbol
     
     mktCap_df <- rbind(mktCap_df, tempData)
   }
-  
 }
+
+## Normalise SD values
+mktCap_df$sdClosePriceNorm <- mktCap_df$sdClosePrice / mktCap_df$medClosePrice
+mktCap_df$sdVolNorm <- mktCap_df$sdVol / mktCap_df$medVol
 
 ## Impute NA values with median
 mktCap_df$medVol[is.na(mktCap_df$medVol)] <- median(mktCap_df$medVol, na.rm = TRUE)
 mktCap_df$medClosePrice[is.na(mktCap_df$medClosePrice)] <- median(mktCap_df$medClosePrice, na.rm = TRUE)
 mktCap_df$medDiff[is.na(mktCap_df$medDiff)] <- median(mktCap_df$medDiff, na.rm = TRUE)
 mktCap_df$medHigh[is.na(mktCap_df$medHigh)] <- median(mktCap_df$medHigh, na.rm = TRUE)
-
-
+mktCap_df$sdClosePriceNorm[is.na(mktCap_df$sdClosePriceNorm)] <- median(mktCap_df$sdClosePriceNorm, na.rm = TRUE)
+mktCap_df$sdVolNorm[is.na(mktCap_df$sdVolNorm)] <- median(mktCap_df$sdVolNorm, na.rm = TRUE)
 
 mktCap_df <- mktCap_df %>%
   filter(year >= 2005)
@@ -268,7 +272,7 @@ riexData$Symbol <- as.character(riexData$Symbol)
 listingsMerge <- select(combinedListing, -c("Ex", "clean"))
 
 
-medStock_df <- mktCap_df[,c("year", "Symbol", "medVol", "medClosePrice", "medDiff", "medHigh")]
+medStock_df <- mktCap_df[,c("year", "Symbol", "medVol", "medClosePrice", "medDiff", "medHigh", "sdClosePriceNorm", "sdVolNorm")]
 medStock_df$year <- as.numeric(medStock_df$year)
 
 listingsMerge <- listingsMerge %>% left_join(riexData, by = "Symbol")
@@ -280,7 +284,7 @@ mergedData_mdStock <- mergedData_mdStock %>% left_join(dataMerge, by = c("Symbol
 mergedData_mdStock$Breached <- ifelse(is.na(mergedData_mdStock$MatchedCompanyName), FALSE, TRUE)
 mergedData_mdStock$MatchedCompanyName <- NULL
 
-write.csv(mergedData_mdStock, "CSV_EDA/20190919MergedData__mdStock.csv")
+write.csv(mergedData_mdStock, "CSV_EDA/20190921MergedData__mdStock.csv")
 
 ################# Regression (Karan) #################
 
@@ -303,7 +307,7 @@ regData$medVol[is.na(regData$medVol)] <- median(regData$medVol, na.rm = TRUE)
 regData$medDiff[is.na(regData$medDiff)] <- median(regData$medDiff, na.rm = TRUE)
 regData$medHigh[is.na(regData$medHigh)] <- median(regData$medHigh, na.rm = TRUE)
 
-
+regData <- na.omit(regData)
 summary(regData)
 
 set.seed(123)
@@ -318,21 +322,98 @@ testSet <- regData[-trainIndex,]
 
 trainSet$Breached <- as.factor(trainSet$Breached)
 trainSet$Symbol <- as.factor(trainSet$Symbol)
-# trainSet <- SMOTE(Breached ~ year+medVol+medClosePrice+medDiff+medHigh+IPOyear, as.data.frame(trainSet), perc.over = 100)
+
+
+
 trainSet <- SMOTE(Breached ~ ., as.data.frame(trainSet), perc.over = 500, n.cores = 7)
 
 
 prop.table(table(trainSet$Breached))
 
-trnCtrl <- trainControl(method = "cv", number = 5)
-glmModel <- train(Breached ~ medVol+medClosePrice+medDiff+medHigh, data = trainSet, method = "glm", family = "binomial", trControl = trnCtrl, na.action = na.exclude)
-# glm(Breached ~ ., family = binomial, data = trainSet)
+trnCtrl <- trainControl(method = "cv", number = 10, summaryFunction = twoClassSummary, verboseIter = FALSE, classProbs = TRUE, allowParallel = TRUE)
 
-pred <- predict(glmModel$finalModel, testSet, , type = "response")
+trainSet$Breached <- as.factor(trainSet$Breached)
+levels(trainSet$Breached) <- c("No", "Yes")
+
+testSet$Breached <- as.factor(testSet$Breached)
+levels(testSet$Breached) <- c("No", "Yes")
+
+glmModel <- train(Breached ~ medVol+compSize+Sector+industry, data = trainSet, method = "glm", family = "binomial", trControl = trnCtrl, na.action = na.exclude, metric = "ROC")
+
+summary(glmModel)
+
+# create prediction and probablity on training and test datasets
+trainSet$predictions = predict(glmModel, newdata = trainSet)
+trainSet$probability <- predict(glmModel, newdata = trainSet, type = "prob")
+
+# create Training preciction object to get model performace metrics
+train_pred <- prediction(trainSet$probability[,2], trainSet$Breached)
+
+#And now a prediction and probablityobject on the testing data
+testSet$predictions = predict(glmModel, newdata = testSet)
+testSet$probability <- predict(glmModel, newdata = testSet, type = "prob")
+
+# create Testing preciction object to get model performace metrics
+test_pred <- prediction(testSet$probability[,2], testSet$Breached)
 
 
-auc <- roc(testSet$Breached, pred)
-print(auc)
+# Create initial Confusion Matrix
+
+confMatrix <- confusionMatrix(data = testSet$predictions, reference = testSet$Breached,
+                              mode = "everything", positive="Yes")
+confMatrix
+#tpr and fpr for our training
+train_tpr_fpr <- performance(train_pred, "tpr","fpr")
+train_auc <- performance(train_pred, "auc")
+
+#tpr and fpr for our testing
+test_tpr_fpr <- performance(test_pred, "tpr","fpr")
+test_auc <- performance(test_pred, "auc")
+
+# Plot the trainig and testing ROC curves
+
+plot(test_tpr_fpr, main="Testing and Training ROC Curves", col = "blue")
+plot(train_tpr_fpr, add = T, col = "red")
+legend("bottomright", legend = c("Training","Testing"), col = c("red","blue"), lty = 1, lwd = 2)
+abline(0,1, col = "darkgray")
+grid()
+
+#AUC figures and analysis
+train_auc = unlist(slot(train_auc, "y.values"))
+train_auc
+
+# Area under the ROC curve
+test_auc = unlist(slot(test_auc, "y.values"))
+test_auc
+
+
+# Programatically determine an optimal cutoff
+
+# Get the performance object
+test_sens_spec = performance(test_pred, "sens","spec")
+
+# Make a dataframe to work out threshhold
+threshold_df = data.frame(cut = test_sens_spec@alpha.values[[1]], 
+                          sens = test_sens_spec@x.values[[1]],
+                          spec = test_sens_spec@y.values[[1]])
+which.max(threshold_df$sens + threshold_df$spec)
+
+# Subset the dataframe to get the relevant cutoff value
+threshold = threshold_df[which.max(threshold_df$sens + threshold_df$spec), "cut"]
+threshold
+
+## Final prediction
+testSet$prediction_cutoff = "No"
+testSet[testSet$probability$Yes >= threshold, "prediction_cutoff"] = "Yes"
+testSet$prediction_cutoff <- as.factor(testSet$prediction_cutoff)
+levels(testSet$prediction_cutoff) <- c("No","Yes")
+
+# Build final confusion matrix
+
+finalConfMatrix <- confusionMatrix(data = testSet$prediction_cutoff, reference = testSet$Breached,
+                                   mode = "everything", positive="Yes")
+finalConfMatrix
+
 
 #### Richard Zhang ####
 #### iex_info_extract combined function
