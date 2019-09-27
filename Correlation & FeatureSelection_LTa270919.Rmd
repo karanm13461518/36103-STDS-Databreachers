@@ -1,0 +1,61 @@
+---
+title: "FeatureSelection"
+author: "LTa"
+date: "27/09/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+##Set up
+library(readr)
+X20190921MergedData_mdStock <- read_csv("~/STDS/GIT TRIAL/RIEX/CSV_EDA/20190921MergedData__mdStock.csv")
+install.packages("GGally")
+suppressMessages(library(GGally))
+suppressMessages(library(ggplot2))
+
+##Explore data
+#Check for N/As
+colSums(is.na(X20190921MergedData_mdStock))
+
+#Count unique values
+unique(X20190921MergedData_mdStock$Sector)
+unique(X20190921MergedData_mdStock$industry)
+
+#Create data frame with only numerical variables for correlation matrix to detect multicollinearity
+corrdf <- X20190921MergedData_mdStock[, c("year","medVol","medClosePrice","medDiff","medHigh","sdClosePriceNorm","sdVolNorm","LastSale")]
+
+#Multicollinearity correlation matrix
+```{r correlate, echo=FALSE}
+ggcorr(corrdf)
+```
+#Correlation co-efficients
+```{r correlate, echo=FALSE}
+corresults <- cor(corrdf)
+corresults
+
+#P-values
+corrpvalue <- cor_pmat(corrdf)
+corrpvalue
+```
+
+##Plot categorical variables against breach and non breach
+#Sector
+ggplot(X20190921MergedData_mdStock, aes(x = Sector, fill = factor(Breached))) +
+    geom_bar() +
+     xlab("Sector") +
+     ylab("Total Count") +
+     labs(fill = "Breached") +
+     geom_label(stat='count',aes(label=..count..), position = "stack") + theme(axis.text.x = element_text(angle = 90))
+
+#compsize
+ggplot(X20190921MergedData_mdStock, aes(x = compSize, fill = factor(Breached))) +
+     geom_bar() +
+     xlab("compSize") +
+     ylab("Total Count") +
+     labs(fill = "Breached") +
+     geom_label(stat='count',aes(label=..count..), position = "stack") + theme(axis.text.x = element_text(angle = 90))
+
+#Wrangle market cap variable?
+
