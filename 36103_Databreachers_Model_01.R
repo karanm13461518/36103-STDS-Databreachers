@@ -1,5 +1,6 @@
 #### Load the libraries
 library(tidyr)
+library(corrplot)
 library(tidyverse)
 library(tidytext)
 library(forcats)
@@ -310,7 +311,14 @@ regData$medHigh[is.na(regData$medHigh)] <- median(regData$medHigh, na.rm = TRUE)
 regData <- na.omit(regData)
 summary(regData)
 
-set.seed(123)
+redDataCor <- as.data.frame(lapply(regData, as.integer))
+regDataCor <- cor(redDataCor)
+
+corrplot(redDataCor,type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45)
+regDataCor
+
+set.seed(42)
 trainIndex <- createDataPartition(regData$year, p = .7,
                                   list = FALSE,
                                   times = 1)
@@ -325,7 +333,7 @@ trainSet$Symbol <- as.factor(trainSet$Symbol)
 
 
 
-trainSet <- SMOTE(Breached ~ ., as.data.frame(trainSet), perc.over = 500, n.cores = 7)
+trainSet <- SMOTE(Breached ~ ., as.data.frame(trainSet), perc.over = 200, n.cores = 7)
 
 
 prop.table(table(trainSet$Breached))
