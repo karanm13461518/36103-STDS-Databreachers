@@ -25,8 +25,6 @@ library(tools)
 library(DMwR)
 library(pROC)
 library(ROCR)
-#devtools::install_github(repo = 'mlampros/fuzzywuzzyR')
-library(fuzzywuzzyR)
 
 #Added by Richard Zhang
 library(Riex)
@@ -43,8 +41,6 @@ cleanCompName <- function(compName){
   
   return(temp)
 }
-
-repalceNAWithMedian <- function(x) {replace(x, is.na(x), median(x[!is.na(x)]))}
 
 ## Function to return financial trend data
 ## Inputs: repDate = date breach reported or point in time = 09/04/2018
@@ -136,6 +132,7 @@ getTrendData <- function(repDate, stockSymbol, fileList_df){
       # Join summaries and add stock symbol
       dataSummary <- cbind(summaryVol, summaryDailyDiff, summaryClosePrice)
       dataSummary$Symbol <- tempSymbol
+      dataSummary$dateRep <- tempDate
     }
   }
   else{
@@ -194,14 +191,21 @@ data <- data %>%
 
 ######### Listings (Karan) ###########
 
+## Read the CSV files
 listingNASDAQ <- read.csv("data/NASDAQcompanylist.csv")
 listingNYSE <- read.csv("data/NYSEcompanylist.csv")
 
+## Drop the additional Columns
 combinedListing <- listingNASDAQ[,-c(8,9)]
+
+## Add which exchnage the data has come from
 combinedListing$Ex <- c("NASDAQ")
 listingNYSE$Ex <- c("NYSE")
+
+## Combine the two listings
 combinedListing <- rbind(combinedListing, listingNYSE[,-c(8,9)])
 
+## set variable types for future analysis
 combinedListing$Symbol <- as.character(combinedListing$Symbol)
 combinedListing$Name <- as.character(combinedListing$Name)
 combinedListing$LastSale <- as.numeric(combinedListing$LastSale)
@@ -209,26 +213,34 @@ combinedListing$MarketCap <- as.character(combinedListing$MarketCap)
 combinedListing$IPOyear <- as.character(combinedListing$IPOyear)
 combinedListing$Ex <- as.factor(combinedListing$Ex)
 
+## Remove any duplicate rows
 combinedListing <- distinct(combinedListing)
 
+## Remove uncommon stock
 combinedListing <- combinedListing %>%
   filter(combinedListing$MarketCap != "n/a")
 
 ################# Loading and Merging Company informaition from RIEX (Karan) #################
 
+## Read in the CSV files
 cData1 <- read.csv("data/CompanyStats1.csv")
 cData2 <- read.csv("data/df_Company_Stats2new.csv")
 cData3 <- read.csv("data/df_Company_Stats3.csv")
 cData4 <- read.csv("data/df_Company_Stats4.csv")
 
+## Combine the data frames
 riexData <- rbind(cData1, cData2, cData3, cData4)
 
+## Select only symbol and num. of employees
 riexData <- riexData[,c("symbol", "employees")]
 
+## set column names
 names(riexData) <- c("Symbol", "numEmployees")
 
+## impute missing values with median for num of employees
 riexData$numEmployees[is.na(riexData$numEmployees)] <- median(riexData$numEmployees, na.rm = TRUE)
 
+## create factor variable for company size based on num. of employees
 riexData$compSize <- factor(case_when(
   riexData$numEmployees <= 1000 ~ "Small",
   riexData$numEmployees > 1000 & riexData$numEmployees <= 5000 ~ "Medium",
@@ -239,14 +251,21 @@ riexData$numEmployees <- NULL
 riexData <- unique(riexData)
 
 
-############## Get Market Cap (Rohan and Karan) ################
+############## Get Stock Information files and stock symbols (Rohan and Karan) ################
 
+## read in Dir with stock information files
 stkFileList <- as.data.frame(list.files("data/stocks", full.names = TRUE))
+
+## set column names
 names(stkFileList) <- c("FileName")
+
+## set file path/name to character
 stkFileList$FileName <- as.character(stkFileList$FileName)
 
+## empty data frame for loop
 stockInfo_df <- data.frame()
 
+## Loop to extract stock symbol for each file name and create new data frame with symbol and complete file path-name
 for(i in 1:nrow(stkFileList)){
   fileName <- stkFileList$FileName[i]
   
@@ -256,46 +275,22 @@ for(i in 1:nrow(stkFileList)){
   #checkFile <- file.info(fileName)
   stockInfo_df[i,"Symbol"] <- mySymbol
   stockInfo_df[i,"File"] <- fileName
-  
-  
-  # if(checkFile$size != 0){
-  #   tempData <- read.csv(fileName)
-  #   
-  #   names(tempData) <- c("Date","Open","High","Low","Close","Volume","OpenInt")
-  #   
-  #   tempData$Open <- as.numeric(as.character(tempData$Open))
-  #   tempData$High <- as.numeric(as.character(tempData$High))
-  #   tempData$Close <- as.numeric(as.character(tempData$Close))
-  #   tempData$Volume <- as.numeric(as.character(tempData$Volume))
-  #   
-  #   tempData$year <- format(as.Date(tempData$Date, format="%Y-%m-%d"),"%Y")
-  #   tempData$dailyDiff <- tempData$Close - tempData$Open
-  #   
-  #   tempData <- tempData %>%
-  #     group_by(year) %>%
-  #     summarise(medVol = median(Volume), medClosePrice = median(Close), 
-  #               medDiff = median(dailyDiff), medHigh = median(High), sdVol = sd(Volume, na.rm=T), sdClosePrice = sd(Close, na.rm = T))
-  #   
-  #   tempData$Symbol <- mySymbol
-  #   
-  #   mktCap_df <- rbind(mktCap_df, tempData)
-  # }
 }
 
-#mktCap_df_test <- spread(mktCap_df, year, medCap)
 
 ############## ORG Matching (Karan) ################
 
+## copy data frame to temp variables
 dataTemp <- data
 data <- dataTemp
 
+## manipulate string to clean company names for further string matching
 data$clean <- cleanCompName(data$Company)
 combinedListing$clean <- cleanCompName(combinedListing$Name)
 
-
+## create empty columns
 data$CompanyName <- NA
 data$Symbol  <- NA
-#data$match <- NA
 
 # proc time to measure how long the loop runs for.
 ptm <- proc.time()
@@ -344,46 +339,52 @@ proc.time()-ptm
 
 ################# Merging Data (Karan) #################
 
-# dataSummary <- data %>%
-#   filter(is.na(CompanyName) == FALSE) %>%
-#   select(Symbol, Company, City, State, BreachType, 
-#          TotalRecords, BreachYear, Latitude, Longitude)
-
+## drop unwated columns from breached orgs dataset and set BreachYear to a Yeas from character.
 breachesData <- select(data,-c("Description", "InfoSource", "SourceURL", "clean"))
 breachesData$BreachYear <- year(as.Date(as.character(breachesData$BreachYear), format = "%Y"))
 
+## assign meaningful names for future use and analysis
 names(breachesData) <- c("DateMadePublic", "OrigCompany", "City" , "State", "BreachType", "OrgType", "TotalRecords", "BreachYear", "Latitude", "Longitude", "MatchedCompanyName", "Symbol")
 
+## Clean up RIEX data
 riexData$Symbol <- as.character(riexData$Symbol)
 
+## Clean up combined stock exchange listing data
 listingsMerge <- select(combinedListing, -c("Ex", "clean"))
 
-# medStock_df <- mktCap_df[,c("year", "Symbol", "medVol", "medClosePrice", "medDiff", "medHigh", "sdClosePriceNorm", "sdVolNorm")]
-# medStock_df$year <- as.numeric(medStock_df$year)
-
+##  Join Stock Ex listings data with RIEX data to get company size
 listingsMerge <- listingsMerge %>% left_join(riexData, by = "Symbol")
 
+## clean up data frame and drop columns not needed for future analysis
 listingsMerge <- select(listingsMerge, c("Symbol", "Sector", "industry", "compSize"))
-
 breachesData <- select(breachesData, c("DateMadePublic", "City", "State", "Symbol"))
 
+## merge Stock Ex listings with reported data breaches data set
 merged_df <- listingsMerge %>% left_join(breachesData, by = "Symbol")
 
+## create new vairable Breached as a factor 0 = Not Breached and 1 = Breached
 merged_df$Breached <- ifelse(is.na(merged_df$DateMadePublic), 0, 1)
 
+## fix up variable formats for further analysis
 merged_df$breachDate <- as.Date(as.character(merged_df$DateMadePublic), "%B %d, %Y")
 merged_df$breachDate[is.na(merged_df$breachDate)] <- as.Date("2018-04-09") #Point in time where we have the last stock data
 
-
+## empty data frame for Stock summary infromation
 mySummary <- data.frame()
 
+## Loop to check each company in merged data frame and get stock infomation
+## for last 12 months from date breach has been reported or point in time being 2018-04-09
+## as that is the last day we have stock information available for.
 for(i in 1:nrow(merged_df)){
-   #i <- 40
+
   tempSymbol <- merged_df$Symbol[i]
   tempDate <- merged_df$breachDate[i]
   
-  tempSummary <- getTrendData(tempDate, tempSymbol, stockInfo_df)
+  if(tempDate > as.Date("2018-04-09")){
+    tempDate <- as.Date("2018-04-09")
+  }
   
+  tempSummary <- getTrendData(tempDate, tempSymbol, stockInfo_df)
   mySummary <- rbind(mySummary, tempSummary)
 }
 
@@ -409,6 +410,8 @@ regData$`CP -12 Months`[is.na(regData$`CP -12 Months`)] <- median(regData$`CP -1
 regData$compSize[is.na(regData$compSize)] <- "Medium"
 
 regData <- select(regData, -c("Symbol", "DateMadePublic", "City", "State", "breachDate"))
+
+write.csv(regData, "CSV_EDA/20190928_Model2_FINAL.csv")
 
 prop.table(table(regData$Breached))
 
