@@ -258,11 +258,6 @@ proc.time()-ptm
 
 ################# Merging Data (Karan) #################
 
-# dataSummary <- data %>%
-#   filter(is.na(CompanyName) == FALSE) %>%
-#   select(Symbol, Company, City, State, BreachType, 
-#          TotalRecords, BreachYear, Latitude, Longitude)
-
 dataMerge <- select(data,-c("Description", "InfoSource", "SourceURL", "clean"))
 dataMerge$BreachYear <- year(as.Date(as.character(dataMerge$BreachYear), format = "%Y"))
 
@@ -285,7 +280,7 @@ mergedData_mdStock <- mergedData_mdStock %>% left_join(dataMerge, by = c("Symbol
 mergedData_mdStock$Breached <- ifelse(is.na(mergedData_mdStock$MatchedCompanyName), FALSE, TRUE)
 mergedData_mdStock$MatchedCompanyName <- NULL
 
-write.csv(mergedData_mdStock, "CSV_EDA/20190921MergedData__mdStock.csv")
+#write.csv(mergedData_mdStock, "CSV_EDA/20190921MergedData__mdStock.csv")
 
 ################# Regression (Karan) #################
 
@@ -319,7 +314,7 @@ corrplot(redDataCor,type = "upper", order = "hclust",
 regDataCor
 
 set.seed(42)
-trainIndex <- createDataPartition(regData$year, p = .7,
+trainIndex <- createDataPartition(regData$Breached, p = .7,
                                   list = FALSE,
                                   times = 1)
 

@@ -280,62 +280,71 @@ for(i in 1:nrow(stkFileList)){
 
 ############## ORG Matching (Karan) ################
 
-## copy data frame to temp variables
-dataTemp <- data
-data <- dataTemp
+# ## copy data frame to temp variables
+# dataTemp <- data
+# data <- dataTemp
+# 
+# ## manipulate string to clean company names for further string matching
+# data$clean <- cleanCompName(data$Company)
+# combinedListing$clean <- cleanCompName(combinedListing$Name)
+# 
+# ## create empty columns
+# data$CompanyName <- NA
+# data$Symbol  <- NA
+# 
+# # proc time to measure how long the loop runs for.
+# ptm <- proc.time()
+# 
+# for(rows in 1:nrow(data)){ #for all rows in the databreach set.
+#   
+#   kw <- data$clean[rows] # searh on the cleaned company name
+#   
+#   
+#   # 
+#   #   # dl and 3.5 = 218 hits
+#   #   # lcs and 2.5 = 115 hits*
+#   #   
+#   # Match on first word in the listings name against companmy name where company name is less than = 2 words
+#   myMatch <- amatch(kw, word(combinedListing$clean,1,2), nomatch = 0, maxDist = 2, nthread = 7, method = "lcs")
+#   
+#   # match on stock symbols
+#   myMatch2 <- amatch(kw, combinedListing$Symbol, nomatch = 0,  maxDist = 1, nthread = 7, method = "dl")
+#   #myMatch2 <- match(kw, combinedListing$Symbol, nomatch = 0)
+#   
+#   
+#   # Fuzzy match on compnay name in combined listings
+#   matchMy <- GetCloseMatches(kw, combinedListing$clean, n = 1, cutoff = 0.75)
+#   myMatchVec <- as.character(as.vector(matchMy))
+#   indexNo <- which(combinedListing$clean == myMatchVec)
+#   
+#   if(myMatch != 0){
+#     data$CompanyName[rows] <- combinedListing$Name[myMatch]
+#     data$Symbol[rows] <- combinedListing$Symbol[myMatch]
+#     #data$match[rows] <- c("Match 1")
+#   }
+#   else if(myMatch == 0 && myMatch2 != 0){
+#     data$CompanyName[rows] <- combinedListing$Name[myMatch2]
+#     data$Symbol[rows] <- combinedListing$Symbol[myMatch2]
+#     #data$match[rows] <- c("Match 2")
+#   }
+#   else if(myMatch == 0 && myMatch2 == 0 && length(indexNo) != 0){
+#     data$CompanyName[rows] <- combinedListing$Name[indexNo]
+#     data$Symbol[rows] <- combinedListing$Symbol[indexNo]
+#     #data$match[rows] <- c("Match 4")
+#   }
+#   
+#   
+# }
+# proc.time()-ptm
 
-## manipulate string to clean company names for further string matching
-data$clean <- cleanCompName(data$Company)
-combinedListing$clean <- cleanCompName(combinedListing$Name)
+#write.csv(data,"data/FINAL_matched_breachdataset.csv")
 
-## create empty columns
-data$CompanyName <- NA
-data$Symbol  <- NA
+## Load final matched Breach dataset from CSV
+## the code above, which has been commented takes approx 15 mins to run.
+## the results have been saved to CSV file FINAL_matched_breachdataset.csv in the
+## data folder. Loading the dataset from CSV instead.
 
-# proc time to measure how long the loop runs for.
-ptm <- proc.time()
-
-for(rows in 1:nrow(data)){ #for all rows in the databreach set.
-  
-  kw <- data$clean[rows] # searh on the cleaned company name
-  
-  
-  # 
-  #   # dl and 3.5 = 218 hits
-  #   # lcs and 2.5 = 115 hits*
-  #   
-  # Match on first word in the listings name against companmy name where company name is less than = 2 words
-  myMatch <- amatch(kw, word(combinedListing$clean,1,2), nomatch = 0, maxDist = 2, nthread = 7, method = "lcs")
-  
-  # match on stock symbols
-  myMatch2 <- amatch(kw, combinedListing$Symbol, nomatch = 0,  maxDist = 1, nthread = 7, method = "dl")
-  #myMatch2 <- match(kw, combinedListing$Symbol, nomatch = 0)
-  
-  
-  # Fuzzy match on compnay name in combined listings
-  matchMy <- GetCloseMatches(kw, combinedListing$clean, n = 1, cutoff = 0.75)
-  myMatchVec <- as.character(as.vector(matchMy))
-  indexNo <- which(combinedListing$clean == myMatchVec)
-  
-  if(myMatch != 0){
-    data$CompanyName[rows] <- combinedListing$Name[myMatch]
-    data$Symbol[rows] <- combinedListing$Symbol[myMatch]
-    #data$match[rows] <- c("Match 1")
-  }
-  else if(myMatch == 0 && myMatch2 != 0){
-    data$CompanyName[rows] <- combinedListing$Name[myMatch2]
-    data$Symbol[rows] <- combinedListing$Symbol[myMatch2]
-    #data$match[rows] <- c("Match 2")
-  }
-  else if(myMatch == 0 && myMatch2 == 0 && length(indexNo) != 0){
-    data$CompanyName[rows] <- combinedListing$Name[indexNo]
-    data$Symbol[rows] <- combinedListing$Symbol[indexNo]
-    #data$match[rows] <- c("Match 4")
-  }
-  
-  
-}
-proc.time()-ptm
+data <- read.csv("data/FINAL_matched_breachdataset.csv")
 
 ################# Merging Data (Karan) #################
 
@@ -390,7 +399,7 @@ for(i in 1:nrow(merged_df)){
 
 ################# Regression (Karan) #################
 
-regData <- merged_df %>% inner_join(mySummary, by = "Symbol")
+regData <- merged_df %>% inner_join(mySummary, by = c("Symbol", "breachDate" = "dateRep"))
 
 regData$`VOL -03 Months`[is.na(regData$`VOL -03 Months`)] <- median(regData$`VOL -03 Months`, na.rm = T)
 regData$`VOL -06 Months`[is.na(regData$`VOL -06 Months`)] <- median(regData$`VOL -06 Months`, na.rm = T)
@@ -411,7 +420,7 @@ regData$compSize[is.na(regData$compSize)] <- "Medium"
 
 regData <- select(regData, -c("Symbol", "DateMadePublic", "City", "State", "breachDate"))
 
-write.csv(regData, "CSV_EDA/20190928_Model2_FINAL.csv")
+#write.csv(regData, "CSV_EDA/20190928_Model2_FINAL.csv")
 
 prop.table(table(regData$Breached))
 
@@ -430,6 +439,10 @@ trainIndex <- createDataPartition(regData$Breached, p = .7,
 trainSet <- regData[trainIndex,]
 testSet <- regData[-trainIndex,]
 
+trainSet <- SMOTE(Breached ~ ., as.data.frame(trainSet), perc.over = 300, n.cores = 7)
+
+
+prop.table(table(trainSet$Breached))
 
 trnCtrl <- trainControl(method = "cv", number = 10, summaryFunction = twoClassSummary, verboseIter = FALSE, classProbs = TRUE, allowParallel = TRUE)
 
