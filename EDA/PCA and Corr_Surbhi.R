@@ -18,7 +18,6 @@ str(picca)
 
 summary(picca)
 
-DataExplorer::create_report(picca)
 
 ####Subset numerical data for PCA
 picca <- subset(picca, select = -c(1:3))
