@@ -1,5 +1,3 @@
-install.packages("digest")
-library(DataExplorer)
 library(ggbiplot)
 library(devtools)
 library(factoextra)
