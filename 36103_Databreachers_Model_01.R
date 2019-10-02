@@ -306,12 +306,6 @@ regData$medHigh[is.na(regData$medHigh)] <- median(regData$medHigh, na.rm = TRUE)
 regData <- na.omit(regData)
 summary(regData)
 
-redDataCor <- as.data.frame(lapply(regData, as.integer))
-regDataCor <- cor(redDataCor)
-
-corrplot(redDataCor,type = "upper", order = "hclust", 
-         tl.col = "black", tl.srt = 45)
-regDataCor
 
 set.seed(42)
 trainIndex <- createDataPartition(regData$Breached, p = .7,
@@ -328,7 +322,7 @@ trainSet$Symbol <- as.factor(trainSet$Symbol)
 
 
 
-trainSet <- SMOTE(Breached ~ ., as.data.frame(trainSet), perc.over = 200, n.cores = 7)
+trainSet <- SMOTE(Breached ~ ., as.data.frame(trainSet), perc.over = 600, n.cores = 7)
 
 
 prop.table(table(trainSet$Breached))
@@ -344,6 +338,8 @@ levels(testSet$Breached) <- c("No", "Yes")
 glmModel <- train(Breached ~ medVol+compSize+Sector+industry, data = trainSet, method = "glm", family = "binomial", trControl = trnCtrl, na.action = na.exclude, metric = "ROC")
 
 summary(glmModel)
+plot(glmModel$finalModel)
+
 
 # create prediction and probablity on training and test datasets
 trainSet$predictions = predict(glmModel, newdata = trainSet)

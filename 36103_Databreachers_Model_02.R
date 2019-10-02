@@ -280,43 +280,43 @@ for(i in 1:nrow(stkFileList)){
 
 ############## ORG Matching (Karan) ################
 
-# ## copy data frame to temp variables
-# dataTemp <- data
-# data <- dataTemp
-# 
-# ## manipulate string to clean company names for further string matching
-# data$clean <- cleanCompName(data$Company)
-# combinedListing$clean <- cleanCompName(combinedListing$Name)
-# 
-# ## create empty columns
-# data$CompanyName <- NA
-# data$Symbol  <- NA
-# 
-# # proc time to measure how long the loop runs for.
+## copy data frame to temp variables
+dataTemp <- data
+data <- dataTemp
+
+## manipulate string to clean company names for further string matching
+data$clean <- cleanCompName(data$Company)
+combinedListing$clean <- cleanCompName(combinedListing$Name)
+
+## create empty columns
+data$CompanyName <- NA
+data$Symbol  <- NA
+
+# proc time to measure how long the loop runs for.
 # ptm <- proc.time()
 # 
 # for(rows in 1:nrow(data)){ #for all rows in the databreach set.
-#   
+# 
 #   kw <- data$clean[rows] # searh on the cleaned company name
-#   
-#   
-#   # 
+# 
+# 
+#   #
 #   #   # dl and 3.5 = 218 hits
 #   #   # lcs and 2.5 = 115 hits*
-#   #   
+#   #
 #   # Match on first word in the listings name against companmy name where company name is less than = 2 words
 #   myMatch <- amatch(kw, word(combinedListing$clean,1,2), nomatch = 0, maxDist = 2, nthread = 7, method = "lcs")
-#   
+# 
 #   # match on stock symbols
 #   myMatch2 <- amatch(kw, combinedListing$Symbol, nomatch = 0,  maxDist = 1, nthread = 7, method = "dl")
 #   #myMatch2 <- match(kw, combinedListing$Symbol, nomatch = 0)
-#   
-#   
+# 
+# 
 #   # Fuzzy match on compnay name in combined listings
 #   matchMy <- GetCloseMatches(kw, combinedListing$clean, n = 1, cutoff = 0.75)
 #   myMatchVec <- as.character(as.vector(matchMy))
 #   indexNo <- which(combinedListing$clean == myMatchVec)
-#   
+# 
 #   if(myMatch != 0){
 #     data$CompanyName[rows] <- combinedListing$Name[myMatch]
 #     data$Symbol[rows] <- combinedListing$Symbol[myMatch]
@@ -332,8 +332,8 @@ for(i in 1:nrow(stkFileList)){
 #     data$Symbol[rows] <- combinedListing$Symbol[indexNo]
 #     #data$match[rows] <- c("Match 4")
 #   }
-#   
-#   
+# 
+# 
 # }
 # proc.time()-ptm
 
@@ -352,6 +352,7 @@ data <- read.csv("data/FINAL_matched_breachdataset.csv")
 breachesData <- select(data,-c("Description", "InfoSource", "SourceURL", "clean"))
 breachesData$BreachYear <- year(as.Date(as.character(breachesData$BreachYear), format = "%Y"))
 
+breachesData$X <- NULL
 ## assign meaningful names for future use and analysis
 names(breachesData) <- c("DateMadePublic", "OrigCompany", "City" , "State", "BreachType", "OrgType", "TotalRecords", "BreachYear", "Latitude", "Longitude", "MatchedCompanyName", "Symbol")
 
@@ -439,10 +440,13 @@ trainIndex <- createDataPartition(regData$Breached, p = .7,
 trainSet <- regData[trainIndex,]
 testSet <- regData[-trainIndex,]
 
-trainSet <- SMOTE(Breached ~ ., as.data.frame(trainSet), perc.over = 300, n.cores = 7)
+prop.table(table(trainSet$Breached))
 
+
+trainSet <- SMOTE(Breached ~ ., as.data.frame(trainSet), perc.over = 600, n.cores = 7)
 
 prop.table(table(trainSet$Breached))
+
 
 trnCtrl <- trainControl(method = "cv", number = 10, summaryFunction = twoClassSummary, verboseIter = FALSE, classProbs = TRUE, allowParallel = TRUE)
 
@@ -455,6 +459,12 @@ levels(testSet$Breached) <- c("No", "Yes")
 glmModel <- train(Breached ~ ., data = trainSet, method = "glm", family = "binomial", trControl = trnCtrl, na.action = na.exclude, metric = "ROC")
 
 summary(glmModel)
+
+plot(glmModel$finalModel)
+
+
+################# Model Evaluation - ROC (Karan) #################
+
 
 # create prediction and probablity on training and test datasets
 trainSet$predictions = predict(glmModel, newdata = trainSet)
